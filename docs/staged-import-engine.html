@@ -1,0 +1,579 @@
+<title>Staged Import Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap">
+<style>
+  :root {
+    --bg:      #eef1ef;
+    --surface: #ffffff;
+    --ink:     #15201d;
+    --muted:   #5b6b67;
+    --line:    #ccd6d2;
+    --flow:    #0f6b5c;
+    --warn:    #a8621c;
+    --stop:    #9d3131;
+    --display: "Chivo", "Helvetica Neue", Arial, sans-serif;
+    --body:    "IBM Plex Serif", Georgia, "Times New Roman", serif;
+    --mono:    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:      #0e1412;
+      --surface: #151d1b;
+      --ink:     #e4ebe8;
+      --muted:   #8fa09b;
+      --line:    #2a3733;
+      --flow:    #3fb89f;
+      --warn:    #d98f4a;
+      --stop:    #e0706a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:      #0e1412;
+    --surface: #151d1b;
+    --ink:     #e4ebe8;
+    --muted:   #8fa09b;
+    --line:    #2a3733;
+    --flow:    #3fb89f;
+    --warn:    #d98f4a;
+    --stop:    #e0706a;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.6;
+    padding-block: 56px 72px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .wrap { max-width: 68rem; margin: 0 auto; }
+  .col  { max-width: 36rem; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(30px, 5.4vw, 46px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0 0 18px;
+  }
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 19px;
+    letter-spacing: -0.01em;
+    margin: 0 0 10px;
+  }
+  p { margin: 0 0 16px; }
+  .lede { font-size: 18px; }
+  em { font-style: italic; }
+  strong { font-weight: 500; }
+
+  .rule { height: 1px; background: var(--line); border: 0; margin: 44px 0; }
+
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 34px;
+    margin: 28px 0 0;
+    padding: 18px 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .stats b {
+    display: block;
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    text-transform: none;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  figure {
+    margin: 0 0 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 22px 20px 16px;
+    overflow-x: auto;
+  }
+  figure svg { display: block; width: 100%; min-width: 660px; max-width: 100%; height: auto; }
+  figure.tight svg { min-width: 520px; }
+  figcaption {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: var(--muted);
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    max-width: 52rem;
+  }
+
+  svg text { font-family: var(--mono); }
+  .bl { font-size: 11px; fill: var(--ink); }
+  .bs { font-size: 9.5px; fill: var(--muted); }
+  .el { font-size: 9.5px; fill: var(--muted); }
+  .el.f { fill: var(--flow); }
+  .el.w { fill: var(--warn); }
+  .el.s { fill: var(--stop); }
+  .st { font-size: 10px; letter-spacing: 0.12em; fill: var(--muted); }
+  .bx { fill: var(--surface); stroke: var(--line); stroke-width: 1; }
+  .bx.f { stroke: var(--flow); }
+  .bx.w { stroke: var(--warn); }
+  .bx.s { stroke: var(--stop); }
+  .bx.d { stroke-dasharray: 4 3; }
+  .ln { fill: none; stroke: currentColor; stroke-width: 1.3; }
+  .ln.f { stroke: var(--flow); }
+  .ln.w { stroke: var(--warn); stroke-dasharray: 4 3; }
+  .ln.s { stroke: var(--stop); }
+  .ln.b { stroke: var(--muted); stroke-dasharray: 2 4; stroke-width: 1; }
+  .mk   { fill: currentColor; }
+  .mk.f { fill: var(--flow); }
+  .mk.w { fill: var(--warn); }
+  .mk.s { fill: var(--stop); }
+  .thin { fill: none; stroke: var(--muted); stroke-width: 1; }
+
+  .notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+  .notes li {
+    display: grid;
+    grid-template-columns: 8.5rem 1fr;
+    gap: 6px 18px;
+    align-items: start;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .notes b {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--flow);
+  }
+  .notes span { font-size: 15px; }
+  @media (max-width: 560px) {
+    .notes li { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Workflow anatomy · abstracted</p>
+  <h1>Staged Import Engine</h1>
+
+  <div class="col">
+    <p class="lede">Two upstream feeds in incompatible shapes become records in a downstream system with two localised views, through twelve gated stages. Nothing reaches the target until every gate before it has said yes, and the run refuses to call itself finished until it has read its own work back.</p>
+    <p>Sources, systems, field names and identifiers are stripped; what is left is the shape. The interesting part is not the transformation, it is <em>how many distinct ways the run can refuse</em>, and that every refusal is a function with a test rather than a sentence someone has to remember.</p>
+  </div>
+
+  <div class="stats">
+    <div><b>75</b>scripts</div>
+    <div><b>58</b>test files</div>
+    <div><b>23k</b>lines</div>
+    <div><b>29</b>logged decisions</div>
+    <div><b>83</b>numbered rules</div>
+    <div><b>94</b>lessons, each pinned to a step</div>
+    <div><b>2,055</b>records shipped in 82 batches</div>
+  </div>
+
+  <hr class="rule">
+
+  <h2>From two feeds to a go-list</h2>
+
+  <figure>
+    <svg viewBox="0 0 980 404" role="img" aria-label="Pipeline diagram, first half: two feeds of different shape are normalised into one canonical model, unioned across sources on shared identifiers, deduplicated against the live system on four independent keys, and assembled into complete records. A second row applies six hold gates, an external rulebook screen that partitions pass, review and remove, a pricing rule and a batch validator, producing the go-list. Every outcome, including holds, reviews and removals, is recorded in one disposition register.">
+      <defs>
+        <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker>
+        <marker id="a1f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk f"/></marker>
+        <marker id="a1w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk w"/></marker>
+        <marker id="a1s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk s"/></marker>
+      </defs>
+
+      <text class="st" x="14"  y="20">01 NORMALISE</text>
+      <text class="st" x="378" y="20">02 MERGE</text>
+      <text class="st" x="560" y="20">03 SELECT</text>
+
+      <rect class="bx" x="14" y="36" width="150" height="40" rx="2"/>
+      <text class="bl" x="26" y="53">feed A · flat rows</text>
+      <text class="bs" x="26" y="67">one row per unit</text>
+
+      <rect class="bx" x="14" y="88" width="150" height="40" rx="2"/>
+      <text class="bl" x="26" y="105">feed B · nested files</text>
+      <text class="bs" x="26" y="119">one file per family</text>
+
+      <rect class="bx" x="196" y="56" width="150" height="60" rx="2"/>
+      <text class="bl" x="208" y="78">canonical model</text>
+      <text class="bs" x="208" y="94">one variation axis</text>
+      <text class="bs" x="208" y="106">sizes + strengths split</text>
+
+      <rect class="bx" x="378" y="56" width="150" height="60" rx="2"/>
+      <text class="bl" x="390" y="78">cross-source union</text>
+      <text class="bs" x="390" y="94">any shared identifier</text>
+      <text class="bs" x="390" y="106">→ one physical unit</text>
+
+      <rect class="bx f" x="560" y="56" width="140" height="60" rx="2"/>
+      <text class="bl" x="572" y="78">dedup vs live</text>
+      <text class="bs" x="572" y="94">4 independent keys</text>
+      <text class="bs" x="572" y="106">any hit skips the unit</text>
+
+      <rect class="bx" x="732" y="56" width="160" height="60" rx="2"/>
+      <text class="bl" x="744" y="78">assemble record</text>
+      <text class="bs" x="744" y="94">every field stamped</text>
+      <text class="bs" x="744" y="106">form, type, pack derived</text>
+
+      <path class="ln" d="M164 56 H180 V78 H192" marker-end="url(#a1)"/>
+      <path class="ln" d="M164 108 H180 V94 H192" marker-end="url(#a1)"/>
+      <path class="ln" d="M346 86 H374" marker-end="url(#a1)"/>
+      <path class="ln" d="M528 86 H556" marker-end="url(#a1)"/>
+      <path class="ln f" d="M700 86 H728" marker-end="url(#a1f)"/>
+      <text class="el f" x="702" y="48">net new</text>
+
+      <path class="ln s" d="M630 116 V134" marker-end="url(#a1s)"/>
+      <text class="el s" x="560" y="150">already live → whole unit skipped</text>
+
+      <path class="ln" d="M812 116 V166 H99 V188" marker-end="url(#a1)"/>
+
+      <text class="st" x="14"  y="180">04 HOLD</text>
+      <text class="st" x="226" y="180">05 SCREEN</text>
+      <text class="st" x="428" y="180">06 PRICE</text>
+      <text class="st" x="590" y="180">07 VALIDATE</text>
+
+      <rect class="bx f" x="14" y="192" width="190" height="60" rx="2"/>
+      <text class="bl" x="26" y="214">create gates</text>
+      <text class="bs" x="26" y="230">identifier · image · cost</text>
+      <text class="bs" x="26" y="242">sample · clearance · exclusions</text>
+
+      <rect class="bx f" x="226" y="192" width="180" height="60" rx="2"/>
+      <text class="bl" x="238" y="214">external rulebook screen</text>
+      <text class="bs" x="238" y="230">pass · review · remove</text>
+      <text class="bs" x="238" y="242">uncertain → review, not remove</text>
+
+      <rect class="bx" x="428" y="192" width="140" height="60" rx="2"/>
+      <text class="bl" x="440" y="214">pricing</text>
+      <text class="bs" x="440" y="230">two margin tiers</text>
+      <text class="bs" x="440" y="242">floor · tax-inclusive</text>
+
+      <rect class="bx f" x="590" y="192" width="160" height="60" rx="2"/>
+      <text class="bl" x="602" y="214">batch validator</text>
+      <text class="bs" x="602" y="230">machine-readable spec</text>
+      <text class="bs" x="602" y="242">same answer for 1 or 1,000</text>
+
+      <rect class="bx f" x="772" y="192" width="190" height="60" rx="2"/>
+      <text class="bl" x="784" y="214">GO-LIST</text>
+      <text class="bs" x="784" y="230">what may be pushed</text>
+      <text class="bs" x="784" y="242">regenerated, never edited</text>
+
+      <path class="ln" d="M204 222 H222" marker-end="url(#a1)"/>
+      <path class="ln" d="M406 222 H424" marker-end="url(#a1)"/>
+      <path class="ln" d="M568 222 H586" marker-end="url(#a1)"/>
+      <path class="ln f" d="M750 222 H768" marker-end="url(#a1f)"/>
+      <text class="el f" x="750" y="186">exit 0</text>
+
+      <path class="ln w" d="M109 252 V308" marker-end="url(#a1w)"/>
+      <text class="el w" x="116" y="284">fails a gate</text>
+      <path class="ln w" d="M316 252 V308" marker-end="url(#a1w)"/>
+      <text class="el w" x="323" y="284">review</text>
+      <path class="ln s" d="M406 240 H498 V308" marker-end="url(#a1s)"/>
+      <text class="el s" x="505" y="284">remove</text>
+      <path class="ln s" d="M670 252 V276" marker-end="url(#a1s)"/>
+      <text class="el s" x="590" y="292">exit 1 · nothing pushes</text>
+
+      <rect class="bx w" x="14" y="312" width="190" height="48" rx="2"/>
+      <text class="bl" x="26" y="332">held · recorded</text>
+      <text class="bs" x="26" y="346">recovered on a later pass</text>
+
+      <rect class="bx w" x="226" y="312" width="180" height="48" rx="2"/>
+      <text class="bl" x="238" y="332">review queue</text>
+      <text class="bs" x="238" y="346">a human decides</text>
+
+      <rect class="bx s" x="428" y="312" width="140" height="48" rx="2"/>
+      <text class="bl" x="440" y="332">removed</text>
+      <text class="bs" x="440" y="346">and its whole family</text>
+
+      <rect class="bx" x="772" y="312" width="190" height="48" rx="2"/>
+      <text class="bl" x="784" y="332">disposition register</text>
+      <text class="bs" x="784" y="346">every decision · generated</text>
+
+      <path class="ln" d="M867 252 V308" marker-end="url(#a1)"/>
+      <text class="el" x="874" y="284">recorded</text>
+
+      <path class="ln b" d="M109 360 V382 H867 V364"/>
+      <path class="ln b" d="M316 360 V382"/>
+      <path class="ln b" d="M498 360 V382"/>
+      <text class="el" x="590" y="396">every outcome lands in one joinable record</text>
+    </svg>
+    <figcaption>Row one turns two shapes into one and throws away what the target already has. Row two is a sequence of refusals: six create gates, an external rulebook that can only escalate uncertainty to a human and never auto-remove, a pricing rule, and a validator that treats a thousand records exactly like one. Amber is held for later, red is dropped, green is what survives. The dotted return is the part that makes the next run cheap: every verdict lands in one generated register, so a delta run can ask "have we seen this, and what did we decide" instead of re-asking every question.</figcaption>
+  </figure>
+
+  <div class="col">
+    <p>Four dedup keys, not one. A shared identifier, a generated key, a normalised name identity against what is already enabled, and finally the target's own physical registry. Each was added after the previous one was shown to be blind to a real duplicate. The union step earlier works the other way, joining rather than skipping, and on a <em>set</em> of identifiers per unit rather than one, because every check built on a single identifier eventually met a record carrying several.</p>
+  </div>
+
+  <hr class="rule">
+
+  <h2>From go-list to live</h2>
+
+  <figure>
+    <svg viewBox="0 0 980 340" role="img" aria-label="Pipeline diagram, second half: a preflight gate reads the live target and lists every blocker at once before a batch may start; payload assembly runs a per-record completeness gate that excludes and names failures while the rest continue; the push creates records hidden, attributes them, writes the second locale, and reads them back from both views; a verifier checks content and language and routes flagged records through repair; enabling takes an explicit hold list; and a closing check reads four post-push facts from the live target before the run may call itself done.">
+      <defs>
+        <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker>
+        <marker id="a2f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk f"/></marker>
+        <marker id="a2w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk w"/></marker>
+        <marker id="a2s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk s"/></marker>
+      </defs>
+
+      <text class="st" x="14"  y="20">08 PREFLIGHT</text>
+      <text class="st" x="236" y="20">09 ASSEMBLE</text>
+      <text class="st" x="418" y="20">10 PUSH</text>
+      <text class="st" x="620" y="20">11 VERIFY</text>
+      <text class="st" x="800" y="20">12 CLOSE</text>
+
+      <rect class="bx f" x="14" y="40" width="190" height="110" rx="2"/>
+      <text class="bl" x="26" y="62">preflight · reads LIVE</text>
+      <text class="bs" x="26" y="80">every option resolves</text>
+      <text class="bs" x="26" y="94">every label resolves</text>
+      <text class="bs" x="26" y="108">category exists + active</text>
+      <text class="bs" x="26" y="122">snapshots newer than plan</text>
+      <text class="bs" x="26" y="136">screen newer than worklist</text>
+
+      <rect class="bx f" x="236" y="40" width="150" height="80" rx="2"/>
+      <text class="bl" x="248" y="62">assemble payload</text>
+      <text class="bs" x="248" y="78">completeness gate</text>
+      <text class="bs" x="248" y="92">pre-send · per record</text>
+      <text class="bs" x="248" y="106">family-ordered</text>
+
+      <rect class="bx" x="418" y="40" width="170" height="40" rx="2"/>
+      <text class="bl" x="430" y="57">1 · create, hidden</text>
+      <text class="bs" x="430" y="71">never visible on create</text>
+
+      <rect class="bx" x="418" y="90" width="170" height="40" rx="2"/>
+      <text class="bl" x="430" y="107">2 · attributes</text>
+      <text class="bs" x="430" y="121">shared view</text>
+
+      <rect class="bx" x="418" y="140" width="170" height="40" rx="2"/>
+      <text class="bl" x="430" y="157">3 · second locale</text>
+      <text class="bs" x="430" y="171">translated copy</text>
+
+      <rect class="bx f" x="418" y="190" width="170" height="40" rx="2"/>
+      <text class="bl" x="430" y="207">4 · read back, both views</text>
+      <text class="bs" x="430" y="221">the store, not the log</text>
+
+      <rect class="bx d" x="418" y="250" width="170" height="44" rx="2"/>
+      <text class="bl" x="430" y="270">push log · append-only</text>
+      <text class="bs" x="430" y="284">a re-run skips what is done</text>
+
+      <rect class="bx f" x="620" y="100" width="150" height="70" rx="2"/>
+      <text class="bl" x="632" y="122">verify load</text>
+      <text class="bs" x="632" y="138">content · language</text>
+      <text class="bs" x="632" y="152">the two views must differ</text>
+
+      <rect class="bx w" x="620" y="210" width="150" height="44" rx="2"/>
+      <text class="bl" x="632" y="230">repair</text>
+      <text class="bs" x="632" y="244">same code as the push</text>
+
+      <rect class="bx" x="800" y="100" width="160" height="60" rx="2"/>
+      <text class="bl" x="812" y="122">enable</text>
+      <text class="bs" x="812" y="138">explicit hold list</text>
+      <text class="bs" x="812" y="150">held records stay hidden</text>
+
+      <rect class="bx f" x="800" y="190" width="160" height="90" rx="2"/>
+      <text class="bl" x="812" y="212">run complete?</text>
+      <text class="bs" x="812" y="230">registry populated</text>
+      <text class="bs" x="812" y="244">shelved</text>
+      <text class="bs" x="812" y="258">reindexed</text>
+      <text class="bs" x="812" y="272">pages reachable</text>
+
+      <rect class="bx s" x="14" y="210" width="190" height="44" rx="2"/>
+      <text class="bl" x="26" y="230">blocked</text>
+      <text class="bs" x="26" y="244">all blockers listed at once</text>
+
+      <rect class="bx w" x="236" y="210" width="150" height="44" rx="2"/>
+      <text class="bl" x="248" y="230">excluded + named</text>
+      <text class="bs" x="248" y="244">the rest still ships</text>
+
+      <path class="ln f" d="M204 95 H232" marker-end="url(#a2f)"/>
+      <text class="el f" x="206" y="88">clear</text>
+      <path class="ln s" d="M109 150 V206" marker-end="url(#a2s)"/>
+      <text class="el s" x="116" y="182">any check</text>
+      <path class="ln w" d="M311 120 V206" marker-end="url(#a2w)"/>
+      <text class="el w" x="318" y="168">incomplete</text>
+
+      <path class="ln" d="M386 80 H402 V60 H414" marker-end="url(#a2)"/>
+      <path class="ln" d="M503 80 V86" marker-end="url(#a2)"/>
+      <path class="ln" d="M503 130 V136" marker-end="url(#a2)"/>
+      <path class="ln" d="M503 180 V186" marker-end="url(#a2)"/>
+      <path class="ln b" d="M503 230 V246"/>
+
+      <path class="ln" d="M588 210 H604 V120 H616" marker-end="url(#a2)"/>
+      <path class="ln f" d="M770 135 H796" marker-end="url(#a2f)"/>
+      <text class="el f" x="772" y="150">clean</text>
+      <path class="ln w" d="M680 170 V206" marker-end="url(#a2w)"/>
+      <text class="el w" x="640" y="192">flagged</text>
+      <path class="ln w" d="M710 210 V174" marker-end="url(#a2w)"/>
+      <text class="el w" x="716" y="192">re-verify</text>
+
+      <path class="ln" d="M880 160 V186" marker-end="url(#a2)"/>
+      <text class="el f" x="800" y="302">all four read from live → DONE</text>
+      <text class="el s" x="800" y="318">any missing → not done</text>
+    </svg>
+    <figcaption>The two flow-colored gates at either end are the same contract facing opposite directions. Preflight refuses to start until every prerequisite holds on the live target, read fresh, not from a snapshot, and reports all blockers together so a batch is not fixed one blocker per attempt. The closing check refuses to call the run done until four post-push facts are true on the live target. Between them the push is chunked and resume-safe: an append-only log lets a killed run continue where it stopped, but nothing is trusted from the log alone. Every record is read back from both views before it counts, and enabling takes the hold list explicitly because an append-only log cannot know which records were deliberately held.</figcaption>
+  </figure>
+
+  <hr class="rule">
+
+  <h2>What one record moves through</h2>
+
+  <figure class="tight">
+    <svg viewBox="0 0 720 200" role="img" aria-label="State diagram: a record moves from absent to created but hidden, attributed, localised, verified, and finally enabled. A process killed after creation leaves a half-made record; a completion pass finishes it using the same attribute step as the normal path. A verified record that is flagged goes through repair and is verified again. Enabling subtracts the hold list.">
+      <defs>
+        <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker>
+        <marker id="a3w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk w"/></marker>
+      </defs>
+
+      <rect class="bx" x="14" y="60" width="100" height="40" rx="2"/>
+      <text class="bl" x="64" y="84" text-anchor="middle">absent</text>
+
+      <rect class="bx" x="134" y="60" width="100" height="40" rx="2"/>
+      <text class="bl" x="184" y="78" text-anchor="middle">created</text>
+      <text class="bs" x="184" y="92" text-anchor="middle">hidden</text>
+
+      <rect class="bx" x="254" y="60" width="100" height="40" rx="2"/>
+      <text class="bl" x="304" y="78" text-anchor="middle">attributed</text>
+      <text class="bs" x="304" y="92" text-anchor="middle">shared view</text>
+
+      <rect class="bx" x="374" y="60" width="100" height="40" rx="2"/>
+      <text class="bl" x="424" y="78" text-anchor="middle">localised</text>
+      <text class="bs" x="424" y="92" text-anchor="middle">second view</text>
+
+      <rect class="bx f" x="494" y="60" width="100" height="40" rx="2"/>
+      <text class="bl" x="544" y="78" text-anchor="middle">verified</text>
+      <text class="bs" x="544" y="92" text-anchor="middle">read back</text>
+
+      <rect class="bx" x="614" y="60" width="100" height="40" rx="2"/>
+      <text class="bl" x="664" y="78" text-anchor="middle">enabled</text>
+      <text class="bs" x="664" y="92" text-anchor="middle">visible</text>
+
+      <path class="ln" d="M114 80 H130" marker-end="url(#a3)"/>
+      <path class="ln" d="M234 80 H250" marker-end="url(#a3)"/>
+      <path class="ln" d="M354 80 H370" marker-end="url(#a3)"/>
+      <path class="ln" d="M474 80 H490" marker-end="url(#a3)"/>
+      <path class="ln" d="M594 80 H610" marker-end="url(#a3)"/>
+      <text class="el" x="124" y="52" text-anchor="middle">create</text>
+      <text class="el" x="244" y="52" text-anchor="middle">attrs</text>
+      <text class="el" x="364" y="52" text-anchor="middle">copy</text>
+      <text class="el" x="484" y="52" text-anchor="middle">readback</text>
+      <text class="el" x="604" y="52" text-anchor="middle">minus holds</text>
+
+      <rect class="bx w" x="130" y="140" width="200" height="40" rx="2"/>
+      <text class="bl" x="142" y="157">completion pass</text>
+      <text class="bs" x="142" y="171">finishes half-made records</text>
+      <path class="ln w" d="M184 100 V136" marker-end="url(#a3w)"/>
+      <text class="el w" x="190" y="122">killed here</text>
+      <path class="ln w" d="M304 140 V104" marker-end="url(#a3w)"/>
+
+      <rect class="bx w" x="454" y="140" width="180" height="40" rx="2"/>
+      <text class="bl" x="466" y="157">repair</text>
+      <text class="bs" x="466" y="171">same step, then re-verify</text>
+      <path class="ln w" d="M564 100 V136" marker-end="url(#a3w)"/>
+      <text class="el w" x="570" y="122">flagged</text>
+      <path class="ln w" d="M520 140 V104" marker-end="url(#a3w)"/>
+    </svg>
+    <figcaption>A record is never visible until it has been read back from both views. The two amber loops are the recovery paths a long push needs: a process killed between create and attribute leaves a record that exists, is missing its fields, and is invisible to the enable step, so a completion pass finishes it, and it calls the same attribute function as the normal path so the two cannot drift. Repair works the same way. The last arrow subtracts the hold list, because a hold is a decision, and a decision is passed explicitly, never inferred from a log.</figcaption>
+  </figure>
+
+  <hr class="rule">
+
+  <h2>Where the rules live</h2>
+
+  <figure class="tight">
+    <svg viewBox="0 0 720 280" role="img" aria-label="Diagram: decisions, runbook rules and lessons are prose. Each is asked whether a code path depends on it. If yes, it becomes a test that fails when violated; if no, it stays prose and is the kind of rule that gets skipped under pressure. A row of referee tests guards the process itself rather than the data.">
+      <defs>
+        <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker>
+        <marker id="a4f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk f"/></marker>
+        <marker id="a4s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk s"/></marker>
+      </defs>
+
+      <text class="el" x="14" y="22">prose</text>
+      <rect class="bx" x="14" y="30" width="170" height="40" rx="2"/>
+      <text class="bl" x="26" y="54">decisions · 29</text>
+      <rect class="bx" x="14" y="80" width="170" height="40" rx="2"/>
+      <text class="bl" x="26" y="104">runbook rules · 83</text>
+      <rect class="bx" x="14" y="130" width="170" height="40" rx="2"/>
+      <text class="bl" x="26" y="154">lessons · 94</text>
+
+      <rect class="bx" x="250" y="70" width="190" height="60" rx="2"/>
+      <text class="bl" x="345" y="96" text-anchor="middle">does a code path</text>
+      <text class="bl" x="345" y="112" text-anchor="middle">depend on it?</text>
+
+      <path class="ln" d="M184 50 H216 V88 H246" marker-end="url(#a4)"/>
+      <path class="ln" d="M184 100 H246" marker-end="url(#a4)"/>
+      <path class="ln" d="M184 150 H216 V112 H246" marker-end="url(#a4)"/>
+
+      <rect class="bx f" x="520" y="40" width="186" height="60" rx="2"/>
+      <text class="bl" x="532" y="62">a test that fails</text>
+      <text class="bs" x="532" y="78">when the rule is violated</text>
+      <text class="bs" x="532" y="90">58 files · runs daily</text>
+
+      <rect class="bx s" x="520" y="130" width="186" height="44" rx="2"/>
+      <text class="bl" x="532" y="150">stays prose</text>
+      <text class="bs" x="532" y="164">skipped under pressure</text>
+
+      <path class="ln f" d="M440 90 H500 V70 H516" marker-end="url(#a4f)"/>
+      <text class="el f" x="446" y="82">yes</text>
+      <path class="ln s" d="M440 110 H500 V152 H516" marker-end="url(#a4s)"/>
+      <text class="el s" x="446" y="124">no</text>
+
+      <path class="ln b" d="M613 100 V196"/>
+      <text class="el" x="14" y="196">referee tests · guard the process, not the data</text>
+
+      <rect class="bx f" x="14" y="210" width="160" height="48" rx="2"/>
+      <text class="bl" x="26" y="230">closed run written to</text>
+      <text class="bs" x="26" y="244">→ fail</text>
+      <rect class="bx f" x="190" y="210" width="160" height="48" rx="2"/>
+      <text class="bl" x="202" y="230">placeholder as image</text>
+      <text class="bs" x="202" y="244">→ fail</text>
+      <rect class="bx f" x="366" y="210" width="160" height="48" rx="2"/>
+      <text class="bl" x="378" y="230">doc drifts from source</text>
+      <text class="bs" x="378" y="244">→ fail</text>
+      <rect class="bx f" x="542" y="210" width="164" height="48" rx="2"/>
+      <text class="bl" x="554" y="230">gate not wired in</text>
+      <text class="bs" x="554" y="244">→ fail</text>
+    </svg>
+    <figcaption>The observation that reshaped the engine, made after a batch where four known lessons were passed over: lessons encoded as code or tests held, every time, and lessons that lived only in prose failed, every time. So the rule became structural. Any prose rule a code path depends on gets a test that fails when it is violated, or it is deleted from the doc. The bottom row is the unusual part: tests that assert nothing about the data and everything about the process, such as the engine never writing into a finished run, and a gate actually being wired to the file its writer produces.</figcaption>
+  </figure>
+
+  <hr class="rule">
+
+  <h2>The rules that hold it together</h2>
+
+  <div class="col">
+    <ul class="notes">
+      <li><b>read back, always</b><span>A write that reports success is not a write. Every record is read back from the live target, on both views, before it counts.</span></li>
+      <li><b>prose is not a gate</b><span>A correctness rule that exists only in a document is one that will be skipped. It belongs in code where it cannot be.</span></li>
+      <li><b>exclude and report</b><span>One incomplete record drops out and names itself. It never blocks the other hundred and fifty that were ready.</span></li>
+      <li><b>a hold is a decision</b><span>The push log is append-only and cannot know what was deliberately held, so enabling takes the hold list explicitly.</span></li>
+      <li><b>closed is read-only</b><span>A finished run is never written to again. A referee test fails the moment any script tries.</span></li>
+      <li><b>fresh is not correct</b><span>Every cached snapshot has a shelf life. Preflight checks their age before a batch, and then reads the live target anyway.</span></li>
+      <li><b>one joiner</b><span>A single normaliser for the shared identifier, used by every consumer. Two normalisations of one key is how a record gets counted twice.</span></li>
+      <li><b>ratios are alarms</b><span>Three silent gates were caught by a number that was too clean, never by an error. Any counter that can reach the whole batch gets an assertion, not a log line.</span></li>
+    </ul>
+  </div>
+</div>
